@@ -1,0 +1,15 @@
+# secrets
+.env
+
+# environments
+.venv/
+
+# data (big and rebuildable)
+data/
+
+# python junk
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
