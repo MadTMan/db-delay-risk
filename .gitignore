@@ -16,3 +16,6 @@ __pycache__/
 
 
 CLAUDE.md
+
+# private shared log (docs/ itself stays tracked for the rules note)
+docs/project_log.md
