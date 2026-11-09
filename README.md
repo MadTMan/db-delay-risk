@@ -1,35 +1,46 @@
 # DB Delay Risk
 
-**How likely is a specific Deutsche Bahn train to be late, and do we need machine learning to say so?**
+**How likely is a Deutsche Bahn train to depart late from a given station, and does machine learning add anything over a simple lookup of past late rates?**
 
-An end-to-end data analysis project in Python. It estimates the probability that a train is late at a given station, scores that estimate honestly on data it has never seen, and uses the evidence to decide whether machine learning is worth using.
+An end-to-end data analysis project in Python. It estimates the probability that a scheduled stop departs at least 6 minutes late, tests that estimate on a month no method has seen, and lets the evidence decide whether machine learning is worth its extra complexity.
 
-**Status:** in progress, Phase 1 of 5. See [Project status](#project-status).
+**Status:** Phase 2 of 5, understanding the data. See [Project status](#project-status).
 
 ## The question
 
-A traveller with a 7-minute connection does not need to know the average delay of German trains. They need to know how risky *this* train is, at *this* station, at *this* time.
+A traveller with a 7-minute connection does not need the average delay of German trains. What matters is how risky *this* train is, at *this* station, at *this* time.
 
-> Given a scheduled stop (a train service, a station, a scheduled time), what is the probability that the train arrives at least 6 minutes late?
+> Given a scheduled stop (a train service, a station, a scheduled time), what is the probability that the train departs at least 6 minutes late?
+
+Cancellations are a different risk from lateness, so they get their own number: the probability that the stop is cancelled.
 
 ## Headline result
 
-> **Pending.** This section will be completed at the end of Phase 4 with measured numbers: how much better the chosen method is than a naive guess on unseen data, and whether machine learning was worth its extra complexity.
+> **Not measured yet.** This section holds the September results: how much better the chosen method is than a naive guess, and whether machine learning was worth it.
 
 ## Approach
 
-Start with the simplest method that could work. Move to a more complex one only if the evidence says the simple one is not good enough.
+Starting with the simplest method that could work, and moving to a more complex one only when the evidence shows the simple one is not good enough.
 
 | Step | Method | Plain-words meaning |
 |---|---|---|
 | 1 | Overall late rate | One number for every train (the naive guess) |
 | 2 | Group rates | Late rate per train type, station or hour |
-| 3 | Lookup table with fallback | Use the history of this exact service and stop; fall back to a broader group when there are too few examples |
-| 4 | Machine learning model | Only if it clearly beats step 3 and stays honest |
+| 3 | Lookup table with fallback | The history of this exact service at this station, falling back to a broader group when there are too few past stops |
+| 4 | Machine learning model | Used only if it clearly beats step 3 and stays honest |
 
-**Success metric.** The Brier score: the average of (predicted probability minus what actually happened) squared, where late is 1 and on time is 0. Lower is better, and confident wrong predictions are punished hard. A method must beat the naive guess, and its probabilities must be calibrated (when it says 30%, about 30% of those trains are late).
+**Success metric.** The Brier score: the average of (predicted probability minus what actually happened) squared, where late is 1 and on time is 0. Lower is better, and confident wrong predictions are punished hard. A method has to beat the naive guess, and its probabilities have to be calibrated (when it says 30%, about 30% of those trains are late).
 
-**Honest testing.** July and August are the history. September is the exam: no method sees it while being built. Splits are by time, never random, because a random split leaks the future into the past.
+**Honest testing.** Earlier months are for learning, August is for choosing between methods, and September is scored once, at the end. The split is by time, never random, because a random split leaks the future into the past. Methods are compared day by day, because stops on the same day or the same journey are late together and are not independent evidence.
+
+## What the data checks show (July)
+
+| Check | Finding |
+|---|---|
+| What the delay column measures | Where a train departs, it is the departure delay in every row checked (13,149,769 of 13,149,769). Where there is no planned departure, it holds the arrival delay instead. |
+| Missing delays | All of them sit on stops with no planned departure. |
+| Duplicates | 1,255 extra copies of the same stop (about 1 in 10,000). |
+| Planned times | 97.4% of stops belong to a service × station pair with a single planned hour across July. |
 
 ## Questions the analysis answers
 
@@ -38,29 +49,30 @@ Start with the simplest method that could work. Move to a more complex one only 
 | What is in the data? | Is there enough to work with? |
 | Do some trains, stations or hours run later than others? | If everything is equally late, nothing can be predicted beyond the average |
 | Are there enough examples per case? | A rate from 3 examples is unreliable; one from 100 starts to be |
-| Does the past repeat? | If July patterns do not hold in August, history cannot predict the future |
+| Does the past repeat? | If one month's patterns do not hold in the next, history cannot predict the future |
 | Do factors combine in ways a lookup misses? | This is where machine learning could earn its place |
 
 ## Data
 
 - Source: [piebro/deutsche-bahn-data](https://huggingface.co/datasets/piebro/deutsche-bahn-data) on Hugging Face, built from Deutsche Bahn's public timetable data.
 - Licence: CC BY 4.0. See the dataset page for the exact attribution terms.
-- Files used: `data-2026-07.parquet`, `data-2026-08.parquet`, `data-2026-09.parquet` from `monthly_processed_data/`.
+- Files used: six monthly files, `data-2026-04.parquet` to `data-2026-09.parquet`, from `monthly_processed_data/`. Each holds 14.5 to 15.1 million stops.
 - The data is not stored in this repository. See [Run it yourself](#run-it-yourself).
 
 ## How the work is run
 
-- **Version control:** small commits with clear messages (`feat:`, `fix:`, `docs:`, `chore:`). After the initial setup, every change goes through a branch and a pull request so it can be reviewed.
+- **Version control:** small commits, each with one purpose and a clear prefix (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`).
 - **Code principles:** KISS, YAGNI, DRY and single-purpose functions, following [webpro/programming-principles](https://github.com/webpro/programming-principles).
-- **Reproducibility:** pinned dependencies, no hard-coded paths, settings defined once at the top of the notebook.
-- **Notebook vs code:** the notebook tells the story. Reusable logic moves into `src/dbdelay/` once it is stable.
+- **Reproducibility:** pinned dependencies and no hard-coded paths. Shared settings (folders, months, the 6-minute rule) are defined once in `src/dbdelay/config.py`; each notebook keeps only its own display settings at the top.
+- **Notebooks vs code:** the notebooks tell the story; shared logic lives in `src/dbdelay/`.
+- **No silent cleaning:** every row that is left out is counted and printed.
 
 ## Project status
 
 | Phase | Deliverable | Status |
 |---|---|---|
-| 1. Setup | Repository, environment, README, data loading | In progress |
-| 2. Understand the data | Coverage, cleaning decisions, spread of delays | Not started |
+| 1. Setup | Repository, environment, README, data loading | Done |
+| 2. Understand the data | Coverage, cleaning decisions, spread of delays | In progress: data checks done, cleaning rules decided |
 | 3. Baselines | Naive guess, group rates, lookup table, scored on September | Not started |
 | 4. Decision | Is machine learning needed? Written memo with evidence | Not started |
 | 5. Write-up | Headline result, charts, limitations | Not started |
@@ -70,12 +82,14 @@ Start with the simplest method that could work. Move to a more complex one only 
 ```
 db-delay-risk/
   README.md
+  pyproject.toml     makes src/dbdelay installable
   requirements.txt
   .gitignore
   data/              raw data files, not committed
-  notebooks/         01_analysis.ipynb
-  src/dbdelay/       reusable functions
+  notebooks/         01_analysis.ipynb, 02_data_checks.ipynb
+  src/dbdelay/       settings, loading, cleaning and scoring code
   reports/figures/   saved charts
+  reports/tables/    saved tables
 ```
 
 ## Run it yourself
@@ -86,15 +100,16 @@ cd db-delay-risk
 python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
+pip install -e .                 # makes src/dbdelay importable from the notebooks
 ```
 
-Download the three data files listed above into `data/`, open `notebooks/01_analysis.ipynb` in VS Code and select the `.venv` kernel.
+Download the six data files listed above into `data/`, open a notebook in `notebooks/` in VS Code and select the `.venv` kernel.
 
 ## Limitations
 
-- The data comes from periodic snapshots of DB's timetable data, so it may not record every train. Coverage is measured in Phase 2.
-- Three months cannot show seasonal effects such as winter weather.
-- Patterns found describe when delays happen, not why they happen.
+- The data comes from periodic snapshots of DB's timetable data, so it may not record every train. Coverage is part of Phase 2.
+- Six months (April to September) cannot show winter effects such as snow and ice.
+- The patterns found describe when delays happen, not why they happen.
 - Predictions use only schedule information known in advance, not the delay already seen earlier on the same journey.
 
 ## Next steps
