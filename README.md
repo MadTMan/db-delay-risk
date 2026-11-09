@@ -4,7 +4,7 @@
 
 An end-to-end data analysis project in Python. It estimates the probability that a scheduled stop departs at least 6 minutes late, tests that estimate on a month no method has seen, and lets the evidence decide whether machine learning is worth its extra complexity.
 
-**Status:** Phase 2 of 5, understanding the data. See [Project status](#project-status).
+**Status:** milestones 1 and 2 of 6 done; milestone 4 (baselines) is next. See [Project status](#project-status).
 
 ## The question
 
@@ -12,7 +12,7 @@ A traveller with a 7-minute connection does not need the average delay of German
 
 > Given a scheduled stop (a train service, a station, a scheduled time), what is the probability that the train departs at least 6 minutes late?
 
-Cancellations are a different risk from lateness, so they get their own number: the probability that the stop is cancelled.
+Cancellations are a different risk from lateness, so they get their own number: the probability that a scheduled departure is cancelled. The late probability is then for trains that do run.
 
 ## Headline result
 
@@ -29,7 +29,13 @@ Starting with the simplest method that could work, and moving to a more complex 
 | 3 | Lookup table with fallback | The history of this exact service at this station, falling back to a broader group when there are too few past stops |
 | 4 | Machine learning model | Used only if it clearly beats step 3 and stays honest |
 
-**Success metric.** The Brier score: the average of (predicted probability minus what actually happened) squared, where late is 1 and on time is 0. Lower is better, and confident wrong predictions are punished hard. A method has to beat the naive guess, and its probabilities have to be calibrated (when it says 30%, about 30% of those trains are late).
+**Success metric.** The Brier score: the average of (predicted probability minus what actually happened) squared, where late is 1 and on time is 0. Lower is better, and confident wrong predictions are punished hard. Log loss is reported alongside it. A method has to beat the naive guess, and its probabilities have to be calibrated (when it says 30%, about 30% of those trains are late), checked with a 10-bin calibration table.
+
+**When machine learning wins.** Fixed before any September score exists. Machine learning replaces the lookup only if, on September, all three hold:
+
+1. Its Brier score is at least about 5% lower than the lookup chosen on August.
+2. It wins on enough September days in a daily sign test (5% significance level).
+3. Its calibration gap is no larger than the lookup's.
 
 **Honest testing.** Earlier months are for learning, August is for choosing between methods, and September is scored once, at the end. The split is by time, never random, because a random split leaks the future into the past. Methods are compared day by day, because stops on the same day or the same journey are late together and are not independent evidence.
 
@@ -41,6 +47,13 @@ Starting with the simplest method that could work, and moving to a more complex 
 | Missing delays | All of them sit on stops with no planned departure. |
 | Duplicates | 1,255 extra copies of the same stop (about 1 in 10,000). |
 | Planned times | 97.4% of stops belong to a service × station pair with a single planned hour across July. |
+
+**Cleaning rules decided** (applied in the next step, every removed row counted and printed):
+
+- Stops with no planned departure are left out, since nobody boards there.
+- Buses (train type `Bus`) are left out; `SBH` is kept.
+- Extra copies of the same scheduled stop are dropped, keeping the first.
+- Extreme delays are kept: about 1 in 10,000 rows, too few to change the results.
 
 ## Questions the analysis answers
 
@@ -69,13 +82,14 @@ Starting with the simplest method that could work, and moving to a more complex 
 
 ## Project status
 
-| Phase | Deliverable | Status |
+| Milestone | Deliverable | Status |
 |---|---|---|
 | 1. Setup | Repository, environment, README, data loading | Done |
-| 2. Understand the data | Coverage, cleaning decisions, spread of delays | In progress: data checks done, cleaning rules decided |
-| 3. Baselines | Naive guess, group rates, lookup table, scored on September | Not started |
-| 4. Decision | Is machine learning needed? Written memo with evidence | Not started |
-| 5. Write-up | Headline result, charts, limitations | Not started |
+| 2. Data checks | What the columns mean, duplicates, cancellations, cleaning rules | Done (rules decided; applied in the next step) |
+| 3. Late rate by train type and station | Which train types and stations are late most often | Analysed on July; write-up follows the rerun with the cleaning rules |
+| 4. Baselines | Naive guess, group rates, lookup table, scored on September | Next |
+| 5. Machine learning decision | Is machine learning needed? Written memo with evidence | Not started |
+| 6. Final write-up | Headline result, charts, limitations | Not started |
 
 ## Repository structure
 
@@ -107,14 +121,14 @@ Download the six data files listed above into `data/`, open a notebook in `noteb
 
 ## Limitations
 
-- The data comes from periodic snapshots of DB's timetable data, so it may not record every train. Coverage is part of Phase 2.
+- The data comes from periodic snapshots of DB's timetable data, so it may not record every train. Coverage has not been measured yet.
 - Six months (April to September) cannot show winter effects such as snow and ice.
 - The patterns found describe when delays happen, not why they happen.
 - Predictions use only schedule information known in advance, not the delay already seen earlier on the same journey.
 
 ## Next steps
 
-- Use the delay already observed at the previous stop to sharpen the prediction.
+- A separate live version could use the delay already seen earlier on the same journey. That is a different question from this project's planning-time prediction.
 - Check how sensitive the results are to the lateness threshold (3 and 15 minutes).
 - Add weather data.
 - Add automated tests and a data download script.
